@@ -1,6 +1,6 @@
-// src/app/shared/components/notification-bell/notification-bell.component.ts
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 
 import { NotificationService } from '../../../core/services/notification.service';
 import { AuthService } from '../../../core/services/auth.service';
@@ -13,7 +13,18 @@ interface AppNotification {
   message: string;
   read: boolean;
   createdAt: string;
-  notificationType: string;
+
+  notificationType:
+    | 'TICKET_CREATED'
+    | 'TICKET_UPDATE'
+    | 'NEW_BATCH'
+    | 'NEW_ORDER'
+    | 'ORDER_STATUS_UPDATED'
+    | 'BATCH_APPROVED'
+    | 'DELIVERY_COMPLETED';
+
+  entityId?: number;
+  relatedTicketId?: string;
 }
 
 @Component({
@@ -33,7 +44,8 @@ export class NotificationBellComponent implements OnInit {
 
   constructor(
     private notificationService: NotificationService,
-    private authService: AuthService
+    private authService: AuthService,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
@@ -51,14 +63,10 @@ export class NotificationBellComponent implements OnInit {
       .getUserNotifications(this.user.id, this.user.role)
       .subscribe({
         next: (res: any) => {
-          const list: AppNotification[] = res.notifications ?? [];
-
-          // 🔒 HARD ROLE + USER ISOLATION
-          this.notifications = list.filter(
-            n =>
-              n.userId === this.user.id &&
-              n.userRole === this.user.role
-          );
+          // Supports both List<> and { notifications: [] }
+          this.notifications = Array.isArray(res)
+            ? res
+            : res?.notifications ?? [];
 
           this.unreadCount =
             this.notifications.filter(n => !n.read).length;
@@ -111,5 +119,63 @@ export class NotificationBellComponent implements OnInit {
       this.unreadCount =
         this.notifications.filter(x => !x.read).length;
     });
+  }
+
+  /* ============================
+     CLICK ACTION BASED ON TYPE
+  ============================ */
+  handleNotificationClick(n: AppNotification): void {
+
+    if (!n.read) {
+      this.notificationService.markAsRead(n.id).subscribe();
+      n.read = true;
+      this.unreadCount--;
+    }
+
+    switch (n.notificationType) {
+
+      case 'TICKET_CREATED':
+      case 'TICKET_UPDATE':
+        this.router.navigate(['/support/tickets', n.entityId]);
+        break;
+
+      case 'NEW_BATCH':
+        this.router.navigate(['/distributor/batches']);
+        break;
+
+      case 'NEW_ORDER':
+        this.router.navigate(['/distributor/orders']);
+        break;
+
+      case 'ORDER_STATUS_UPDATED':
+        this.router.navigate(['/consumer/orders', n.entityId]);
+        break;
+
+      case 'BATCH_APPROVED':
+        this.router.navigate(['/farmer/batches', n.entityId]);
+        break;
+
+      case 'DELIVERY_COMPLETED':
+        this.router.navigate(['/orders/history']);
+        break;
+    }
+
+    this.close();
+  }
+
+  /* ============================
+     ICON MAPPING
+  ============================ */
+  getIcon(type: AppNotification['notificationType']): string {
+    switch (type) {
+      case 'TICKET_CREATED': return '🎫';
+      case 'TICKET_UPDATE': return '💬';
+      case 'NEW_BATCH': return '🌾';
+      case 'NEW_ORDER': return '🛒';
+      case 'ORDER_STATUS_UPDATED': return '📦';
+      case 'BATCH_APPROVED': return '✅';
+      case 'DELIVERY_COMPLETED': return '🚚';
+      default: return '🔔';
+    }
   }
 }

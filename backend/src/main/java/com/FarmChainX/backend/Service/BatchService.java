@@ -22,15 +22,17 @@ public class BatchService {
     private final CropRepository cropRepository;
     private final ListingService listingService;
     private final BatchTraceRepository batchTraceRepository;
+    private final NotificationEventService notificationEventService;
 
     public BatchService(BatchRecordRepository batchRecordRepository,
-            CropRepository cropRepository,
-            ListingService listingService,
-            BatchTraceRepository batchTraceRepository) {
+                        CropRepository cropRepository,
+                        ListingService listingService,
+                        BatchTraceRepository batchTraceRepository, NotificationEventService notificationEventService) {
         this.batchRecordRepository = batchRecordRepository;
         this.cropRepository = cropRepository;
         this.listingService = listingService;
         this.batchTraceRepository = batchTraceRepository;
+        this.notificationEventService = notificationEventService;
     }
 
     // ------------------- CREATE NEW BATCH -------------------
@@ -124,10 +126,11 @@ public class BatchService {
             double farmerPrice = crop.getPrice() != null ? crop.getPrice() : 0.0;
 
             // 💰 Profit calculation
-            double farmerProfit = farmerPrice * 0.10; // 10%
-            double distributorProfit = farmerPrice * 0.10; // 10%
+            double farmerProfit = farmerPrice * 0.10;
+            double distributorProfit = farmerPrice * 0.10;
 
-            double finalMarketPrice = farmerPrice + farmerProfit + distributorProfit;
+            double finalMarketPrice =
+                    farmerPrice + farmerProfit + distributorProfit;
 
             Listing listing = new Listing();
             listing.setBatchId(batchId);
@@ -136,19 +139,31 @@ public class BatchService {
             listing.setDistributorId(distributorId);
 
             listing.setQuantity(
-                    crop.getQuantity() != null ? Double.parseDouble(crop.getQuantity()) : 0.0);
+                    crop.getQuantity() != null
+                            ? Double.parseDouble(crop.getQuantity())
+                            : 0.0
+            );
 
-            // 👇 IMPORTANT: Marketplace sees ONLY final price
             listing.setPrice(finalMarketPrice);
-
-            // Optional (recommended)
             listing.setFarmerProfit(farmerProfit);
             listing.setDistributorProfit(distributorProfit);
 
             listingService.createOrActivateListing(listing);
         }
 
-        return batchRecordRepository.save(batch);
+        batchRecordRepository.save(batch);
+
+        // 🔔 NOTIFY FARMER – APPROVAL
+        notificationEventService.notifyUser(
+                batch.getFarmerId(),
+                "FARMER",
+                "Batch Approved ✅",
+                "Your batch " + batchId + " has been approved and listed in the marketplace.",
+                "BATCH_APPROVED",
+                batchId
+        );
+
+        return batch;
     }
 
     private Double parseDoubleSafe(String number) {
@@ -162,27 +177,44 @@ public class BatchService {
     // ------------------- REJECT BATCH -------------------
     // ------------------- REJECT BATCH -------------------
     @Transactional
-    public BatchRecord rejectBatch(String batchId, String distributorId, String reason) {
+    public BatchRecord rejectBatch(
+            String batchId,
+            String distributorId,
+            String reason
+    ) {
 
         BatchRecord batch = batchRecordRepository.findById(batchId)
                 .orElseThrow(() -> new RuntimeException("Batch not found"));
 
         batch.setStatus("REJECTED");
         batch.setRejectedBy(distributorId);
-        batch.setRejectionReason(reason); // ✅ STORE REASON
+        batch.setRejectionReason(reason);
         batch.setBlocked(true);
         batch.setUpdatedAt(LocalDateTime.now());
 
         batchRecordRepository.save(batch);
 
-        // Optional but recommended: add trace entry
+        // 🧾 Trace (optional but good)
         saveTrace(
                 batch,
                 "REJECTED - Reason: " + (reason != null ? reason : "N/A"),
-                distributorId);
+                distributorId
+        );
+
+        // 🔔 NOTIFY FARMER – REJECTION
+        notificationEventService.notifyUser(
+                batch.getFarmerId(),
+                "FARMER",
+                "Batch Rejected ❌",
+                "Your batch " + batchId + " was rejected. Reason: "
+                        + (reason != null ? reason : "Not specified"),
+                "BATCH_REJECTED",
+                batchId
+        );
 
         return batch;
     }
+
 
     @Transactional
     public BatchRecord updateStatus(String batchId, String status, String userId) {
@@ -198,7 +230,7 @@ public class BatchService {
             batch.setHarvestDate(LocalDate.now());
         }
 
-        // 2️⃣ 🔥 UPDATE ALL CROPS IN THIS BATCH
+        // 2️⃣ Update all crops under this batch
         List<Crop> crops = cropRepository.findByBatchId(batchId);
         for (Crop crop : crops) {
             crop.setStatus(status);
@@ -210,6 +242,21 @@ public class BatchService {
 
         // 4️⃣ Trace
         saveTrace(batch, status, userId);
+
+        // 🔔 5️⃣ AUTO NOTIFY DISTRIBUTOR WHEN HARVESTED
+        if ("HARVESTED".equalsIgnoreCase(status)) {
+            String distributorId = batch.getDistributorId();
+            System.out.println(distributorId);
+
+            notificationEventService.notifyUser(
+                     "ALL",                      // all distributors
+                    "DISTRIBUTOR",
+                    "New Batch Ready for Approval",
+                    "Batch " + batch.getBatchId() + " is harvested and waiting for approval",
+                    "BATCH_SUBMITTED",
+                    batch.getBatchId()           // entity reference
+            );
+        }
 
         return batch;
     }
@@ -469,6 +516,7 @@ public class BatchService {
         trace.setFarmerId(batch.getFarmerId());
         trace.setStatus(status);
         trace.setChangedBy(userId);
+
         trace.setTimestamp(LocalDateTime.now());
         batchTraceRepository.save(trace);
     }

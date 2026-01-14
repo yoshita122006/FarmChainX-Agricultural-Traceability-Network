@@ -1,52 +1,67 @@
 <div class="relative">
 
+  <!-- 🔔 Bell -->
   <button (click)="toggleDropdown()" class="relative p-2">
     🔔
-    <span *ngIf="unreadCount"
+    <span *ngIf="unreadCount > 0"
       class="absolute -top-1 -right-1 bg-red-500 text-white text-xs px-1 rounded-full">
       {{ unreadCount }}
     </span>
   </button>
 
+  <!-- Dropdown -->
   <div *ngIf="showDropdown"
-    class="absolute right-0 mt-2 w-80 bg-white rounded shadow z-50">
+       class="absolute right-0 mt-2 w-80 bg-white rounded shadow z-50">
 
+    <!-- Header -->
     <div class="flex justify-between p-3 border-b">
       <b>Notifications</b>
       <div class="flex gap-2">
-        <button *ngIf="unreadCount"
-          class="text-blue-600 text-sm"
-          (click)="markAllAsRead()">Mark all</button>
+        <button *ngIf="unreadCount > 0"
+                class="text-blue-600 text-sm"
+                (click)="markAllAsRead()">
+          Mark all
+        </button>
         <button (click)="close()">✕</button>
       </div>
     </div>
 
-    <div *ngIf="loading" class="p-6 text-center">
+    <!-- Loading -->
+    <div *ngIf="loading" class="p-6 text-center text-gray-500">
       Loading notifications...
     </div>
 
+    <!-- Empty -->
     <div *ngIf="!loading && notifications.length === 0"
-      class="p-6 text-gray-500 text-center">
+         class="p-6 text-gray-500 text-center">
       No notifications
     </div>
 
+    <!-- Notification list -->
     <div *ngFor="let n of notifications"
-      class="p-3 border-b hover:bg-gray-50">
+         class="p-3 border-b hover:bg-gray-50 cursor-pointer"
+         (click)="handleNotificationClick(n)">
 
-      <div class="flex justify-between">
-        <b>{{ n.title }}</b>
+      <div class="flex justify-between items-start">
+        <b>
+          {{ getIcon(n.notificationType) }}
+          {{ n.title }}
+        </b>
+
         <button class="text-red-500"
-          (click)="delete(n, $event)">×</button>
+                (click)="delete(n, $event)">
+          ×
+        </button>
       </div>
 
-      <p class="text-sm">{{ n.message }}</p>
+      <p class="text-sm mt-1">{{ n.message }}</p>
 
-      <div class="flex justify-between text-xs text-gray-500 mt-1">
+      <div class="flex justify-between text-xs text-gray-500 mt-2">
         <span>{{ n.createdAt | date:'short' }}</span>
-        <button
-          *ngIf="!n.read"
-          (click)="markAsRead(n, $event)"
-          class="text-blue-600">
+
+        <button *ngIf="!n.read"
+                (click)="markAsRead(n, $event)"
+                class="text-blue-600">
           Mark read
         </button>
       </div>

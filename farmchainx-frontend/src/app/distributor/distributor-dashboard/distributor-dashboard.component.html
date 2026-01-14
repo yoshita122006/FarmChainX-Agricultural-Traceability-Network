@@ -1,50 +1,16 @@
 <div class="p-6" *ngIf="distributorId; else loginMsg">
 
-  <!-- 🔔 Notification Bell -->
-  <div class="flex justify-end mb-4 relative">
-    <button (click)="toggleNotifications()" class="relative text-xl">
-      
-      <span *ngIf="unreadCount > 0"
-            class="absolute -top-2 -right-2 bg-red-600 text-white text-xs px-2 py-0.5 rounded-full">
-        {{ unreadCount }}
-      </span>
-    </button>
-
-    <!-- Dropdown -->
-    <div *ngIf="showNotifications"
-         class="absolute right-0 mt-10 w-80 bg-white border shadow-lg rounded-lg z-50 max-h-96 overflow-y-auto">
-
-      <div *ngIf="notifications.length === 0"
-           class="p-4 text-center text-gray-500">
-        No notifications
-      </div>
-
-      <div *ngFor="let n of notifications"
-           (click)="markAsRead(n)"
-           class="p-3 border-b cursor-pointer"
-           [ngClass]="!n.read ? 'bg-green-50' : 'bg-white'">
-
-        <p class="font-semibold">{{ n.title }}</p>
-        <p class="text-sm text-gray-600">{{ n.message }}</p>
-        <p class="text-xs text-gray-400 mt-1">
-          {{ n.createdAt | date:'short' }}
-        </p>
-      </div>
-    </div>
-  </div>
-
   <h1 class="text-3xl font-bold mb-6">Distributor Dashboard</h1>
 
   <!-- ================= STATS ================= -->
   <div class="grid md:grid-cols-3 gap-4 mb-6">
+
     <div class="bg-white p-4 rounded-xl shadow border">
-  <p class="text-sm text-gray-500">Total Distributor Earnings</p>
-  <p class="text-2xl font-bold text-green-700">
-    ₹{{ totalDistributorEarnings | number:'1.0-0' }}
-
-  </p>
-</div>
-
+      <p class="text-sm text-gray-500">Total Distributor Earnings</p>
+      <p class="text-2xl font-bold text-green-700">
+        ₹{{ totalDistributorEarnings | number:'1.0-0' }}
+      </p>
+    </div>
 
     <div class="bg-white p-4 rounded-xl shadow border">
       <p class="text-sm text-gray-500">Live Orders</p>
@@ -55,6 +21,7 @@
       <p class="text-sm text-gray-500">Order History</p>
       <p class="text-2xl font-bold text-green-700">{{ historyOrders.length }}</p>
     </div>
+
   </div>
 
   <!-- ================= TABS ================= -->
@@ -95,68 +62,73 @@
   </ng-container>
 
   <!-- ================= LIVE ORDERS ================= -->
- <ng-container *ngIf="tab === 'ORDERS'">
-  <h2 class="text-xl font-semibold mb-4">Live Orders</h2>
-  <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-    <div *ngFor="let order of liveOrders" class="bg-white p-5 rounded-xl shadow border">
+  <ng-container *ngIf="tab === 'ORDERS'">
+    <h2 class="text-xl font-semibold mb-4">Live Orders</h2>
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-      <img
-        [src]="order.cropImageUrl ? ('http://localhost:8080' + order.cropImageUrl) : '/assets/placeholder.png'"
-        class="w-full h-40 object-cover rounded-lg mb-3"
-        (error)="$event.target.src='/assets/placeholder.png'"
-      />
+      <div *ngFor="let order of liveOrders"
+           class="bg-white p-5 rounded-xl shadow border">
 
-      <div class="flex justify-between mb-2">
-        <h3 class="font-semibold">{{ order.orderCode }}</h3>
-        <span class="px-2 py-1 rounded-full text-xs font-medium"
-              [ngClass]="{
-                'bg-yellow-100 text-yellow-700': order.status==='IN_WAREHOUSE',
-                'bg-blue-100 text-blue-700': order.status==='IN_TRANSIT',
-                'bg-green-100 text-green-700': order.status==='DELIVERED',
-                'bg-red-100 text-red-700': order.status==='CANCELLED'
-              }">
-          {{ order.status.replace('_',' ') }}
-        </span>
-      </div>
+        <img
+          [src]="order.cropImageUrl ? ('http://localhost:8080' + order.cropImageUrl) : '/assets/placeholder.png'"
+          class="w-full h-40 object-cover rounded-lg mb-3"
+          (error)="$event.target.src='/assets/placeholder.png'"
+        />
 
-      <p class="font-medium">{{ order.cropName }}</p>
-      <p>Quantity: {{ order.quantity }} kg</p>
-      <p>Total: ₹{{ order.totalAmount }}</p>
+        <div class="flex justify-between mb-2">
+          <h3 class="font-semibold">{{ order.orderCode }}</h3>
+          <span class="px-2 py-1 rounded-full text-xs font-medium"
+                [ngClass]="{
+                  'bg-yellow-100 text-yellow-700': order.status==='IN_WAREHOUSE',
+                  'bg-blue-100 text-blue-700': order.status==='IN_TRANSIT',
+                  'bg-green-100 text-green-700': order.status==='DELIVERED',
+                  'bg-red-100 text-red-700': order.status==='CANCELLED'
+                }">
+            {{ order.status.replace('_',' ') }}
+          </span>
+        </div>
 
-      <!-- 🟢 Buyer Details -->
-      <div class="mt-3 p-3 bg-gray-50 rounded border">
-        <p><strong>Buyer ID:</strong> {{ order.consumerId }}</p>
-        <p><strong>Contact:</strong> {{ order.contactNumber }}</p>
-        <p><strong>Delivery Address:</strong> {{ order.deliveryAddress }}</p>
-      </div>
+        <p class="font-medium">{{ order.cropName }}</p>
+        <p>Quantity: {{ order.quantity }} kg</p>
+        <p>Total: ₹{{ order.totalAmount }}</p>
 
-      <div class="flex flex-wrap gap-2 mt-4">
-        <button class="bg-yellow-500 text-white px-3 py-1 rounded"
-                (click)="updateStatus(order,'IN_WAREHOUSE')">
-          Warehouse
-        </button>
-        <button class="bg-blue-500 text-white px-3 py-1 rounded"
-                (click)="updateStatus(order,'IN_TRANSIT')">
-          Transit
-        </button>
-        <button class="bg-green-600 text-white px-3 py-1 rounded"
-                (click)="updateStatus(order,'DELIVERED')">
-          Delivered
-        </button>
-        <button class="bg-red-600 text-white px-3 py-1 rounded"
-                (click)="cancelOrder(order.orderId)">
-          Cancel
-        </button>
+        <!-- Buyer Details -->
+        <div class="mt-3 p-3 bg-gray-50 rounded border">
+          <p><strong>Buyer ID:</strong> {{ order.consumerId }}</p>
+          <p><strong>Contact:</strong> {{ order.contactNumber }}</p>
+          <p><strong>Delivery Address:</strong> {{ order.deliveryAddress }}</p>
+        </div>
+
+        <div class="flex flex-wrap gap-2 mt-4">
+          <button class="bg-yellow-500 text-white px-3 py-1 rounded"
+                  (click)="updateStatus(order,'IN_WAREHOUSE')">
+            Warehouse
+          </button>
+          <button class="bg-blue-500 text-white px-3 py-1 rounded"
+                  (click)="updateStatus(order,'IN_TRANSIT')">
+            Transit
+          </button>
+          <button class="bg-green-600 text-white px-3 py-1 rounded"
+                  (click)="updateStatus(order,'DELIVERED')">
+            Delivered
+          </button>
+          <button class="bg-red-600 text-white px-3 py-1 rounded"
+                  (click)="cancelOrder(order.orderId)">
+            Cancel
+          </button>
+        </div>
+
       </div>
     </div>
-  </div>
-</ng-container>
+  </ng-container>
 
   <!-- ================= HISTORY ================= -->
   <ng-container *ngIf="tab === 'HISTORY'">
     <h2 class="text-xl font-semibold mb-4">Order History</h2>
     <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <div *ngFor="let order of historyOrders" class="bg-green-50 p-5 rounded-xl shadow border">
+
+      <div *ngFor="let order of historyOrders"
+           class="bg-green-50 p-5 rounded-xl shadow border">
 
         <img
           [src]="order.cropImageUrl ? ('http://localhost:8080' + order.cropImageUrl) : '/assets/placeholder.png'"
@@ -178,11 +150,13 @@
         <p>Quantity: {{ order.quantity }} kg</p>
         <p>Total: ₹{{ order.totalAmount }}</p>
 
-        <div *ngIf="order.status==='DELIVERED'" class="mt-3 bg-white p-3 rounded border">
+        <div *ngIf="order.status==='DELIVERED'"
+             class="mt-3 bg-white p-3 rounded border">
           💰 Distributor Profit: ₹{{ getDistributorProfit(order) }}
         </div>
 
-        <div *ngIf="order.status==='CANCELLED'" class="mt-3 bg-red-100 p-3 rounded border">
+        <div *ngIf="order.status==='CANCELLED'"
+             class="mt-3 bg-red-100 p-3 rounded border">
           ❌ Order Cancelled — No Profit
         </div>
 

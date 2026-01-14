@@ -9,7 +9,7 @@ import { catchError, map } from 'rxjs/operators';
 export class SimpleAIService {
   
   // ⚠️ PUT YOUR GROQ API KEY HERE
-  private readonly GROQ_API_KEY = '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';
+  private readonly GROQ_API_KEY = 'YOUR_GROQ_API_KEY_HERE';
   private readonly GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
   
   constructor(private http: HttpClient) { }

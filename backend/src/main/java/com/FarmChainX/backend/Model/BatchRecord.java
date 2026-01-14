@@ -34,6 +34,9 @@ public class BatchRecord {
     @Column(name = "distributor_id")
     private String distributorId;
 
+    @Column(name = "crop_id")
+    private Long cropId;
+
     @Column(name = "crop_type")
     private String cropType;
 

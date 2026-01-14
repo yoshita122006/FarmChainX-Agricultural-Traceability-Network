@@ -34,14 +34,15 @@ public class SupportService {
     private UserRepository userRepository;
 
     // ======================================================
-    // TICKET METHODS (UNCHANGED)
+    // TICKET CREATION
     // ======================================================
 
     @Transactional
     public SupportTicket createTicket(SupportTicket ticket) {
 
-        ticket.setTicketId("TKT-" + System.currentTimeMillis() + "-" +
-                (int)(Math.random() * 1000));
+        ticket.setTicketId(
+                "TKT-" + System.currentTimeMillis() + "-" + (int) (Math.random() * 1000)
+        );
 
         SupportTicket savedTicket = ticketRepository.save(ticket);
 
@@ -53,7 +54,7 @@ public class SupportService {
         initialMessage.setAdminResponse(false);
         initialMessage.setCreatedAt(LocalDateTime.now());
 
-        // 🔥 NEW: reporter message visible only to admin
+        // Reporter message → visible ONLY to admin
         initialMessage.setVisibleTo("ADMIN");
 
         messageRepository.save(initialMessage);
@@ -64,22 +65,25 @@ public class SupportService {
 
     private void createAdminNotification(SupportTicket ticket) {
         Notification notification = new Notification();
-        notification.setUserId("1");
+        notification.setUserId("1"); // default admin
         notification.setUserRole("ADMIN");
         notification.setTitle("New Support Ticket Created");
-        notification.setMessage(String.format(
-                "User %s (ID: %s) has created a new ticket: %s",
-                ticket.getReportedByRole(),
-                ticket.getReportedById(),
-                ticket.getSubject()
-        ));
+        notification.setMessage(
+                "User " + ticket.getReportedByRole() +
+                        " (ID: " + ticket.getReportedById() +
+                        ") created ticket: " + ticket.getSubject()
+        );
         notification.setNotificationType("TICKET_CREATED");
         notification.setRelatedTicketId(ticket.getTicketId());
-        notification.setTicketId(ticket.getId());
+        notification.setEntityId(String.valueOf(ticket.getId()));
         notification.setRead(false);
 
         notificationRepository.save(notification);
     }
+
+    // ======================================================
+    // TICKET FETCHING
+    // ======================================================
 
     public List<SupportTicket> getUserTickets(String userId) {
         return ticketRepository.findByReportedById(userId);
@@ -95,16 +99,20 @@ public class SupportService {
 
     public SupportTicket getTicketById(Long id) {
         return ticketRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Ticket not found with id: " + id));
+                .orElseThrow(() -> new RuntimeException("Ticket not found"));
     }
 
     public SupportTicket getTicketByTicketId(String ticketId) {
         SupportTicket ticket = ticketRepository.findByTicketId(ticketId);
         if (ticket == null) {
-            throw new RuntimeException("Ticket not found with ticketId: " + ticketId);
+            throw new RuntimeException("Ticket not found");
         }
         return ticket;
     }
+
+    // ======================================================
+    // TICKET UPDATES
+    // ======================================================
 
     public SupportTicket updateTicketStatus(Long ticketId, String status) {
         SupportTicket ticket = getTicketById(ticketId);
@@ -121,7 +129,7 @@ public class SupportService {
     }
 
     // ======================================================
-    // MESSAGE METHODS (FIXED, NOT REPLACED)
+    // MESSAGE HANDLING (ROLE SAFE)
     // ======================================================
 
     @Transactional
@@ -138,16 +146,14 @@ public class SupportService {
         message.setTicket(ticket);
         message.setCreatedAt(LocalDateTime.now());
 
-        // 🔥 CORE FIX: isolate conversations
+        // 🔥 Core isolation logic
         if (isAdmin) {
-            // admin must explicitly choose target
             if ("REPORTED_AGAINST".equals(message.getVisibleTo())) {
                 message.setVisibleTo("REPORTED_AGAINST");
             } else {
                 message.setVisibleTo("REPORTER");
             }
         } else {
-            // users only talk to admin
             message.setVisibleTo("ADMIN");
         }
 
@@ -157,7 +163,9 @@ public class SupportService {
         ticket.setStatus("IN_PROGRESS");
         ticketRepository.save(ticket);
 
-        // ================= NOTIFICATIONS =================
+        // ==================================================
+        // NOTIFICATIONS
+        // ==================================================
 
         if (isAdmin) {
 
@@ -196,20 +204,27 @@ public class SupportService {
     }
 
     // ======================================================
-    // MESSAGE FETCHING (ROLE-AWARE)
+    // MESSAGE FETCHING
     // ======================================================
 
     public List<TicketMessage> getTicketMessages(Long ticketId) {
         return messageRepository.findByTicketIdOrderByCreatedAtAsc(ticketId);
     }
 
+    public List<TicketMessage> getAdminResponsesForTicket(Long ticketId) {
+        return messageRepository.findByTicketIdAndIsAdminResponseTrue(ticketId);
+    }
+
     // ======================================================
-    // NOTIFICATION METHODS (UNCHANGED)
+    // NOTIFICATIONS
     // ======================================================
 
-    private void createUserNotification(String receiverId, String receiverRole,
-                                        String title, String messageContent,
-                                        String relatedTicketId) {
+    private void createUserNotification(
+            String receiverId,
+            String receiverRole,
+            String title,
+            String messageContent,
+            String relatedTicketId) {
 
         if (receiverId == null || receiverId.isEmpty()) return;
 
@@ -223,20 +238,22 @@ public class SupportService {
         notification.setRead(false);
 
         SupportTicket ticket = ticketRepository.findByTicketId(relatedTicketId);
-        notification.setTicketId(ticket != null ? ticket.getId() : 0L);
+        notification.setEntityId(String.valueOf(ticket != null ? ticket.getId() : null));
 
         notificationRepository.save(notification);
     }
 
     public List<Notification> getUserNotifications(String userId, String userRole) {
         return notificationRepository
-                .findByUserIdAndUserRoleOrderByCreatedAtDesc(userId, userRole);
+                .findRelevantNotifications(userId, userRole);
     }
+
 
     public long getUnreadNotificationCount(String userId, String userRole) {
         return notificationRepository
-                .countByUserIdAndUserRoleAndIsReadFalse(userId, userRole);
+                .countUnreadNotifications(userId, userRole);
     }
+
 
     @Transactional
     public Notification markNotificationAsRead(Long notificationId) {
@@ -249,15 +266,17 @@ public class SupportService {
     @Transactional
     public void markAllNotificationsAsRead(String userId, String userRole) {
         List<Notification> unread =
-                notificationRepository.findByUserIdAndUserRoleAndIsReadFalse(userId, userRole);
+                notificationRepository.findUnreadNotifications(userId, userRole);
+
         for (Notification n : unread) {
             n.setRead(true);
-            notificationRepository.save(n);
         }
+        notificationRepository.saveAll(unread);
     }
 
+
     // ======================================================
-    // STATS & HELPERS (UNCHANGED)
+    // STATS
     // ======================================================
 
     public Map<String, Object> getSupportStats() {
@@ -276,9 +295,5 @@ public class SupportService {
 
     public List<SupportTicket> getTicketsReportedAgainstUser(String userId) {
         return ticketRepository.findByReportedAgainstId(userId);
-    }
-
-    public List<TicketMessage> getAdminResponsesForTicket(Long ticketId) {
-        return messageRepository.findByTicketIdAndIsAdminResponseTrue(ticketId);
     }
 }

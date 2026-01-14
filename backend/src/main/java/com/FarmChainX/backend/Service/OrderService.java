@@ -22,6 +22,9 @@ public class OrderService {
     private CropRepository cropRepository;
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private NotificationEventService notificationEventService;
+
 
     /* ================= PLACE ORDER ================= */
 
@@ -58,13 +61,27 @@ public class OrderService {
         order.setCreatedAt(LocalDateTime.now());
         order.setUpdatedAt(LocalDateTime.now());
 
-        return orderRepository.save(order);
+        Order savedOrder = orderRepository.save(order);
+
+        // 🔔 NOTIFY DISTRIBUTOR
+        notificationEventService.notifyUser(
+                savedOrder.getDistributorId(),
+                "DISTRIBUTOR",
+                "New Order Received 🛒",
+                "Order #" + savedOrder.getOrderId() + " has been placed.",
+                "NEW_ORDER",
+                String.valueOf(savedOrder.getOrderId())
+        );
+
+        return savedOrder;
     }
+
 
     /* ================= UPDATE STATUS ================= */
 
     @Transactional
-    public Order updateOrderStatus(Long orderId, OrderStatus status, String distributorId, String location) {
+    public Order updateOrderStatus(Long orderId, OrderStatus status,
+                                   String distributorId, String location) {
 
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
@@ -94,8 +111,24 @@ public class OrderService {
             settlePayment(order);
         }
 
-        return orderRepository.save(order);
+        Order updatedOrder = orderRepository.save(order);
+
+        // 🔔 NOTIFY CONSUMER – STATUS UPDATE
+        notificationEventService.notifyUser(
+                updatedOrder.getConsumerId(),
+                "BUYER",
+                "Order Status Updated 📦",
+                "Your order #" + updatedOrder.getOrderId()
+                        + " is now " + status.name(),
+                status == OrderStatus.DELIVERED
+                        ? "ORDER_DELIVERED"
+                        : "ORDER_STATUS_UPDATE",
+                String.valueOf(updatedOrder.getOrderId())
+        );
+
+        return updatedOrder;
     }
+
 
 
     /* ================= CONSUMER CANCEL ================= */
@@ -115,7 +148,20 @@ public class OrderService {
         order.setUpdatedAt(LocalDateTime.now());
 
         orderRepository.save(order);
+
+        // 🔔 NOTIFY DISTRIBUTOR
+        notificationEventService.notifyUser(
+                order.getDistributorId(),
+                "DISTRIBUTOR",
+                "Order Cancelled ❌",
+                "Order #" + order.getOrderId()
+                        + " was cancelled. Reason: "
+                        + (reason != null ? reason : "N/A"),
+                "ORDER_CANCELLED",
+                String.valueOf(order.getOrderId())
+        );
     }
+
 
     /* ================= FETCH ================= */
 

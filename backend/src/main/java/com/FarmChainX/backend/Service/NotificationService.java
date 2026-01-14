@@ -4,63 +4,60 @@ import com.FarmChainX.backend.Model.Notification;
 import com.FarmChainX.backend.Repository.NotificationRepository;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
 public class NotificationService {
 
-    private final NotificationRepository notificationRepository;
+    private final NotificationRepository repo;
 
-    public NotificationService(NotificationRepository notificationRepository) {
-        this.notificationRepository = notificationRepository;
+    public NotificationService(NotificationRepository repo) {
+        this.repo = repo;
     }
 
-    // Create notification
-    public Notification createNotification(Notification notification) {
-        notification.setCreatedAt(LocalDateTime.now());
-        notification.setRead(false);
-        return notificationRepository.save(notification);
+    /* =========================================================
+       CREATE
+    ========================================================= */
+
+    public Notification create(Notification notification) {
+        return repo.save(notification);
     }
 
-    // Get all notifications for user
+    /* =========================================================
+       FETCH ALL NOTIFICATIONS (USER + ALL)
+    ========================================================= */
+
     public List<Notification> getUserNotifications(String userId, String role) {
-        return notificationRepository
-                .findByUserIdAndUserRoleOrderByCreatedAtDesc(userId, role);
+        return repo.findRelevantNotifications(userId, role);
     }
 
-    // Get unread notifications
-    public List<Notification> getUnreadNotifications(String userId, String role) {
-        return notificationRepository
-                .findByUserIdAndUserRoleAndIsReadFalse(userId, role);
-    }
+    /* =========================================================
+       UNREAD COUNT (USER + ALL)
+    ========================================================= */
 
-    // Count unread
     public long getUnreadCount(String userId, String role) {
-        return notificationRepository
-                .countByUserIdAndUserRoleAndIsReadFalse(userId, role);
+        return repo.countUnreadNotifications(userId, role);
     }
 
-    // Mark as read
+    /* =========================================================
+       MARK SINGLE AS READ
+    ========================================================= */
+
     public void markAsRead(Long id) {
-        Notification notification = notificationRepository.findById(id)
+        Notification n = repo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Notification not found"));
-
-        notification.setRead(true);
-        notificationRepository.save(notification);
+        n.setRead(true);
+        repo.save(n);
     }
 
-    // Mark all as read
+    /* =========================================================
+       MARK ALL AS READ (USER + ALL)
+    ========================================================= */
+
     public void markAllAsRead(String userId, String role) {
-        List<Notification> notifications =
-                notificationRepository.findByUserIdAndUserRoleAndIsReadFalse(userId, role);
-
-        notifications.forEach(n -> n.setRead(true));
-        notificationRepository.saveAll(notifications);
-    }
-
-    // Delete old notifications (optional cron usage)
-    public void deleteOlderThan(LocalDateTime date) {
-        notificationRepository.deleteNotificationsOlderThan(date);
+        List<Notification> list =
+                repo.findUnreadNotifications(userId, role);
+        list.forEach(n -> n.setRead(true));
+        repo.saveAll(list);
     }
 }
